@@ -122,7 +122,7 @@ function renderTracker() {
         <span></span>
       </div>
       ${list.map(b => `
-        <div class="tt-row status-${b.status}" onclick="openModal('edit', '${b.id}')">
+        <div class="tt-row status-${b.status}" onclick="openDetail('${b.id}')">
           <div class="tt-main">
             <div class="tt-firma">
               ${escHtml(b.firma)}
@@ -133,11 +133,10 @@ function renderTracker() {
             ${b.stelle && b.stelle !== '–' ? `<div class="tt-stelle">${escHtml(b.stelle)}</div>` : ''}
           </div>
           <div class="tt-datum-col">
-            ${b.datum ? `<div class="tt-datum">${formatDate(b.datum)}</div>` : ''}
-            ${b.datum ? `<div class="tt-age">${daysAgo(b.datum)}</div>` : ''}
+            ${b.datum ? `<div class="tt-datum">${formatDate(b.datum)}</div>${daysAgoHtml(b.datum)}` : '<span class="tt-empty-cell">–</span>'}
           </div>
           <div class="tt-plat-col">
-            ${b.plattform ? `<span class="tracker-plattform">${escHtml(b.plattform)}</span>` : ''}
+            ${b.plattform ? `<span class="tracker-plattform">${escHtml(b.plattform)}</span>` : '<span class="tt-empty-cell">–</span>'}
             ${b.kontakt ? `<div class="tt-kontakt">↳ ${escHtml(b.kontakt)}</div>` : ''}
           </div>
           <div class="tt-frist-col">${deadlineChip(b.frist)}</div>
@@ -165,6 +164,7 @@ function renderStats() {
   const eingeladen = STATE.bewerbungen.filter(b => b.status === 'eingeladen').length;
   const absagen = STATE.bewerbungen.filter(b => b.status === 'absage').length;
 
+  const rate = total > 0 ? Math.round((eingeladen / total) * 100) : 0;
   document.getElementById('stats-row').innerHTML = `
     <div class="stat-card">
       <div class="stat-header"><div class="stat-label">Gesamt</div><span class="stat-dot"></span></div>
@@ -176,12 +176,12 @@ function renderStats() {
       <div class="stat-num">${offen}</div>
       <div class="stat-sub">Ausstehend</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card accent">
       <div class="stat-header"><div class="stat-label">Eingeladen</div><span class="stat-dot green"></span></div>
       <div class="stat-num green">${eingeladen}</div>
-      <div class="stat-sub">Interviews</div>
+      <div class="stat-sub">${rate}% Rücklaufquote</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card${absagen > 0 ? ' danger' : ''}">
       <div class="stat-header"><div class="stat-label">Absagen</div><span class="stat-dot red"></span></div>
       <div class="stat-num red">${absagen}</div>
       <div class="stat-sub">Rückmeldungen</div>
@@ -1129,6 +1129,17 @@ function daysAgo(datum) {
   return `vor ${Math.floor(days / 30)} Mon.`;
 }
 
+function daysAgoHtml(datum) {
+  if (!datum) return '';
+  const days = Math.floor((Date.now() - new Date(datum)) / 86400000);
+  if (days < 0) return '';
+  if (days === 0) return '<span class="tt-age age-fresh">Heute</span>';
+  if (days === 1) return '<span class="tt-age age-fresh">Gestern</span>';
+  if (days <= 13) return `<span class="tt-age">${days} Tage</span>`;
+  if (days <= 29) return `<span class="tt-age age-warn">vor ${Math.floor(days / 7)} Wo.</span>`;
+  return `<span class="tt-age age-old">vor ${Math.floor(days / 30)} Mon.</span>`;
+}
+
 function deadlineChip(frist) {
   if (!frist) return '';
   const days = Math.floor((new Date(frist) - Date.now()) / 86400000);
@@ -1144,6 +1155,95 @@ function openFirstAttachment(id, event) {
   const b = STATE.bewerbungen.find(x => x.id === id);
   if (!b || !b.attachments || !b.attachments.length) return;
   const a = b.attachments[0];
+  const raw = a.base64.includes(',') ? a.base64.split(',')[1] : a.base64;
+  const byteStr = atob(raw);
+  const bytes = new Uint8Array(byteStr.length);
+  for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  window.open(URL.createObjectURL(blob), '_blank');
+}
+
+// ═══════════════════════════════════════════════
+// DETAIL VIEW
+// ═══════════════════════════════════════════════
+
+function openDetail(id) {
+  const b = STATE.bewerbungen.find(x => x.id === id);
+  if (!b) return;
+
+  const fristHtml = b.frist ? deadlineChip(b.frist) : '<span style="color:var(--hint)">–</span>';
+
+  const attachHtml = b.attachments && b.attachments.length > 0
+    ? b.attachments.map((a, i) => `
+        <div class="detail-att">
+          <span class="detail-att-icon">📄</span>
+          <span class="detail-att-name">${escHtml(a.name)}</span>
+          <button class="att-open" onclick="openAttachmentById('${id}', ${i})">Öffnen</button>
+        </div>`).join('')
+    : '<span style="color:var(--hint);font-size:13px;">Keine Anhänge</span>';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-header status-${b.status}">
+      <div class="detail-status-bar"></div>
+      <div class="detail-header-inner">
+        <div>
+          <div class="detail-firma">${escHtml(b.firma)}</div>
+          ${b.stelle && b.stelle !== '–' ? `<div class="detail-stelle">${escHtml(b.stelle)}</div>` : ''}
+        </div>
+        <div class="detail-header-actions">
+          <span class="status-badge status-${b.status}" onclick="cycleDetailStatus('${id}')" title="Status wechseln" style="cursor:pointer;">${statusLabel(b.status)}</span>
+          <button class="btn-ghost" onclick="closeDetail(); openModal('edit','${id}')">Bearbeiten</button>
+          <button class="modal-close" onclick="closeDetail()">✕</button>
+        </div>
+      </div>
+    </div>
+    <div class="detail-body">
+      <div class="detail-grid">
+        <div class="detail-section">
+          <div class="detail-section-title">Bewerbungsdetails</div>
+          <div class="detail-fields">
+            <div class="detail-field"><span class="detail-field-label">Datum</span><span>${b.datum ? formatDate(b.datum) + ' · ' + daysAgo(b.datum) : '–'}</span></div>
+            <div class="detail-field"><span class="detail-field-label">Frist</span><span>${fristHtml}</span></div>
+            <div class="detail-field"><span class="detail-field-label">Plattform</span><span>${b.plattform ? escHtml(b.plattform) : '–'}</span></div>
+            <div class="detail-field"><span class="detail-field-label">Kontakt</span><span>${b.kontakt ? escHtml(b.kontakt) : '–'}</span></div>
+            ${b.link ? `<div class="detail-field"><span class="detail-field-label">Link</span><a href="${escHtml(b.link)}" target="_blank" class="detail-link">Stellenanzeige öffnen ↗</a></div>` : ''}
+          </div>
+        </div>
+        ${b.notizen ? `
+        <div class="detail-section">
+          <div class="detail-section-title">Notizen</div>
+          <div class="detail-notizen">${escHtml(b.notizen)}</div>
+        </div>` : ''}
+      </div>
+      <div class="detail-section">
+        <div class="detail-section-title">Dokumente</div>
+        <div class="detail-atts">${attachHtml}</div>
+      </div>
+    </div>
+    <div class="detail-footer">
+      <button class="btn-danger-ghost" onclick="closeDetail(); deleteBewerbung('${id}')">Löschen</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-ghost" onclick="closeDetail()">Schließen</button>
+        <button class="btn-primary" onclick="closeDetail(); openModal('edit','${id}')">Bearbeiten</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('detail-overlay').classList.remove('hidden');
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').classList.add('hidden');
+}
+
+function cycleDetailStatus(id) {
+  cycleStatus(id, { stopPropagation: () => {} });
+  openDetail(id); // refresh the detail view
+}
+
+function openAttachmentById(bewerbungId, idx) {
+  const b = STATE.bewerbungen.find(x => x.id === bewerbungId);
+  if (!b || !b.attachments || !b.attachments[idx]) return;
+  const a = b.attachments[idx];
   const raw = a.base64.includes(',') ? a.base64.split(',')[1] : a.base64;
   const byteStr = atob(raw);
   const bytes = new Uint8Array(byteStr.length);
@@ -1206,6 +1306,7 @@ function escHtml(str) {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    closeDetail();
     closeModal();
     closeFormelModal();
     closeDuplicate();
