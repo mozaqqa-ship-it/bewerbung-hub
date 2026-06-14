@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mona Zaqqa – Bewerbungs-Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">
+    <span class="nav-initial">MZ</span>
+    <span class="nav-name">Bewerbungs-Hub</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('tracker')">Übersicht</button>
+    <button class="nav-tab" onclick="showPage('baukasten')">Anschreiben</button>
+    <button class="nav-tab" onclick="showPage('formeln')">Formulierungen</button>
+    <button class="nav-tab" onclick="showPage('analyse')">Analyse</button>
+  </div>
+  <button class="btn-icon nav-settings" onclick="openSettings()" title="Einstellungen">⚙</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════
+     SEITE 1: BEWERBUNGS-TRACKER
+═══════════════════════════════════════════════ -->
+<main id="page-tracker" class="page active">
+  <div class="page-header">
+    <div>
+      <h1>Bewerbungen</h1>
+      <p class="page-sub">Übersicht aller laufenden und abgeschlossenen Bewerbungen</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn-ghost" onclick="exportJSON()">↓ Export</button>
+      <button class="btn-ghost" onclick="exportPDF()">⎙ PDF</button>
+      <button class="btn-ghost" onclick="document.getElementById('import-file').click()">↑ Import</button>
+      <button class="btn-primary" onclick="openModal('add')">+ Bewerbung hinzufügen</button>
+    </div>
+  </div>
+  <input type="file" id="import-file" accept=".json" class="js-hidden" onchange="importJSON(event)">
+
+  <div class="stats-row" id="stats-row"></div>
+
+  <div class="filter-row">
+    <input type="text" id="search-input" placeholder="Suchen..." oninput="renderTracker()" class="search-input">
+    <select id="filter-status" onchange="renderTracker()" class="filter-select">
+      <option value="">Alle Status</option>
+      <option value="offen">Offen</option>
+      <option value="eingeladen">Eingeladen</option>
+      <option value="absage">Absage</option>
+      <option value="angebot">Angebot</option>
+    </select>
+    <select id="sort-by" onchange="renderTracker()" class="filter-select">
+      <option value="datum-desc">Neueste zuerst</option>
+      <option value="datum-asc">Älteste zuerst</option>
+      <option value="firma">Firma A–Z</option>
+    </select>
+  </div>
+
+  <div id="tracker-list" class="tracker-list"></div>
+</main>
+
+<!-- Print-only export area -->
+<div class="print-only" id="print-table"></div>
+
+<!-- ═══════════════════════════════════════════════
+     SEITE 2: ANSCHREIBEN-BAUKASTEN
+═══════════════════════════════════════════════ -->
+<main id="page-baukasten" class="page">
+  <div class="page-header">
+    <div>
+      <h1>Anschreiben-Baukasten</h1>
+      <p class="page-sub">Formulierungen auswählen, kombinieren, exportieren</p>
+    </div>
+  </div>
+
+  <div class="baukasten-grid">
+    <div class="baukasten-left">
+      <div class="card">
+        <label class="field-label">Unternehmen</label>
+        <input type="text" id="b-firma" placeholder="z.B. RYZON" oninput="updateBaukastenFirma()" class="full-input">
+      </div>
+      <div class="card">
+        <div class="card-header-row">
+          <span class="card-title">Einstieg</span>
+          <span class="badge-hint">1 auswählen</span>
+        </div>
+        <div id="b-einstieg" class="chip-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-header-row">
+          <span class="card-title">Kompetenz & Belege</span>
+          <span class="badge-hint">mehrere möglich</span>
+        </div>
+        <div id="b-kompetenz" class="chip-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-header-row">
+          <span class="card-title">Verbindungssatz</span>
+          <span class="badge-hint">optional</span>
+        </div>
+        <div id="b-verbindung" class="chip-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-header-row">
+          <span class="card-title">Abschluss</span>
+          <span class="badge-hint">1 auswählen</span>
+        </div>
+        <div id="b-abschluss" class="chip-list"></div>
+      </div>
+    </div>
+
+    <div class="baukasten-right">
+      <div class="card preview-card sticky-card">
+        <div class="card-header-row">
+          <span class="card-title">Vorschau</span>
+          <div class="btn-row">
+            <span id="b-wordcount" class="wordcount">0 Wörter</span>
+            <button class="btn-ghost" onclick="clearBaukasten()">Leeren</button>
+            <button class="btn-primary small" onclick="copyLetter()">Kopieren</button>
+          </div>
+        </div>
+        <div class="preview-letter" id="preview-letter">
+          <p class="preview-placeholder">Wähle links Formulierungen aus, um das Anschreiben aufzubauen.</p>
+        </div>
+        <div class="preview-footer">
+          <button class="btn-ghost full-w" onclick="saveToTracker()">Als Bewerbung speichern ↗</button>
+        </div>
+      </div>
+      <div class="card check-card">
+        <div class="card-title" style="margin-bottom:10px;">Qualitäts-Check</div>
+        <textarea id="check-text" placeholder="Text hier einfügen oder aus Vorschau übernehmen..." rows="5"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn-ghost" onclick="usePreviewForCheck()">Aus Vorschau übernehmen</button>
+          <button class="btn-primary small" onclick="runCheck()">Prüfen</button>
+        </div>
+        <div id="check-results" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ═══════════════════════════════════════════════
+     SEITE 3: FORMULIERUNGEN VERWALTEN
+═══════════════════════════════════════════════ -->
+<main id="page-formeln" class="page">
+  <div class="page-header">
+    <div>
+      <h1>Formulierungen</h1>
+      <p class="page-sub">Neue Formulierungen einfügen, anpassen und dem Baukasten hinzufügen</p>
+    </div>
+    <button class="btn-primary" onclick="openFormelModal()">+ Neue Formulierung</button>
+  </div>
+  <div class="formeln-grid" id="formeln-grid"></div>
+</main>
+
+<!-- ═══════════════════════════════════════════════
+     SEITE 4: ANALYSE
+═══════════════════════════════════════════════ -->
+<main id="page-analyse" class="page">
+  <div class="page-header">
+    <div>
+      <h1>Analyse</h1>
+      <p class="page-sub">KI-Analyse deiner Bewerbungsmappe und Statistiken</p>
+    </div>
+  </div>
+
+  <div class="analyse-grid">
+    <div class="analyse-left">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:8px;">Bewerbungsmappe analysieren</div>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">Lade mehrere PDFs hoch (Lebenslauf, Anschreiben, Zeugnisse) für eine KI-Analyse aller Dokumente.</p>
+        <div id="mappe-dropzone" class="dropzone"
+             ondragover="dzOver(event,'mappe-dropzone')"
+             ondragleave="dzLeave(event,'mappe-dropzone')"
+             ondrop="dzDrop(event,'mappe-dropzone',true)">
+          <div class="dz-body">
+            <div class="dz-icon">📂</div>
+            <div class="dz-text">PDFs hierher ziehen oder <span class="dz-link" onclick="document.getElementById('mappe-file').click()">auswählen</span></div>
+            <div class="dz-hint">Mehrere Dateien gleichzeitig möglich</div>
+          </div>
+        </div>
+        <input type="file" id="mappe-file" accept=".pdf" multiple class="js-hidden" onchange="mappeFilesSelected(event)">
+        <div id="mappe-filelist" class="attachment-list" style="margin-top:8px;"></div>
+        <div id="mappe-ai-bar" class="ai-bar js-hidden" style="margin-top:10px;">
+          <select id="mappe-stelle-select" class="full-input" style="font-size:12.5px;flex:1;">
+            <option value="">Stelle auswählen (optional)...</option>
+          </select>
+          <button class="btn-primary small" onclick="analyseMappe()">
+            <span id="mappe-btn-text">Mappe analysieren</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="mappe-results" class="js-hidden">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:14px;">KI-Analyse Ergebnisse</div>
+          <div id="analyse-ergebnis"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="analyse-right">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px;">Statistiken</div>
+        <div id="analyse-stats"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px;">Zeitleiste</div>
+        <div id="analyse-timeline"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: BEWERBUNG HINZUFÜGEN / BEARBEITEN
+═══════════════════════════════════════════════ -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 id="modal-title">Bewerbung hinzufügen</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label class="field-label">Unternehmen *</label>
+        <input type="text" id="m-firma" placeholder="z.B. RYZON GmbH" class="full-input">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Stelle *</label>
+          <input type="text" id="m-stelle" placeholder="z.B. Content Managerin" class="full-input">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Datum</label>
+          <input type="date" id="m-datum" class="full-input">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Status</label>
+          <select id="m-status" class="full-input">
+            <option value="offen">Offen</option>
+            <option value="eingeladen">Eingeladen</option>
+            <option value="absage">Absage</option>
+            <option value="angebot">Angebot</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Plattform</label>
+          <input type="text" id="m-plattform" placeholder="z.B. LinkedIn, Direkt..." class="full-input">
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Ansprechpartner:in</label>
+        <input type="text" id="m-kontakt" placeholder="z.B. Frau Mörchen" class="full-input">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Link zur Stellenanzeige</label>
+        <input type="url" id="m-link" placeholder="https://..." class="full-input">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Notizen</label>
+        <textarea id="m-notizen" rows="3" placeholder="Besonderheiten, nächste Schritte..."></textarea>
+      </div>
+
+      <!-- ANHÄNGE -->
+      <div class="field-group">
+        <label class="field-label">Dokumente (PDF)</label>
+        <div id="modal-dropzone" class="dropzone"
+             ondragover="dzOver(event,'modal-dropzone')"
+             ondragleave="dzLeave(event,'modal-dropzone')"
+             ondrop="dzDrop(event,'modal-dropzone',false)">
+          <div class="dz-body">
+            <div class="dz-icon">📎</div>
+            <div class="dz-text">PDF hierher ziehen oder <span class="dz-link" onclick="document.getElementById('modal-file').click()">auswählen</span></div>
+            <div class="dz-hint">Stellenanzeige, Anschreiben…</div>
+          </div>
+        </div>
+        <input type="file" id="modal-file" accept=".pdf" multiple class="js-hidden" onchange="modalFilesSelected(event)">
+        <div id="modal-attachment-list" class="attachment-list"></div>
+      </div>
+
+      <!-- KI-LEISTE -->
+      <div id="modal-ai-bar" class="ai-bar hidden">
+        <span class="ai-bar-label">KI kann Felder automatisch ausfüllen</span>
+        <button class="btn-primary small" onclick="analyseModalFile()">
+          <span id="ai-btn-text">Analysieren</span>
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-primary" onclick="saveBewerbung()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: FORMULIERUNG HINZUFÜGEN
+═══════════════════════════════════════════════ -->
+<div id="formel-overlay" class="modal-overlay hidden" onclick="closeFormelModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 id="formel-modal-title">Neue Formulierung</h2>
+      <button class="modal-close" onclick="closeFormelModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label class="field-label">Roher Text (z.B. von Reddit, eigene Idee)</label>
+        <textarea id="f-roh" rows="4" placeholder="Formulierung hier einkippen..." oninput="previewAdapt()"></textarea>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Angepasste Version <span style="color:var(--muted);">(bearbeite den Text unten)</span></label>
+        <textarea id="f-text" rows="4" placeholder="Hier erscheint die angepasste Version..."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Kategorie</label>
+          <select id="f-kat" class="full-input">
+            <option value="einstieg">Einstieg</option>
+            <option value="kompetenz">Kompetenz & Beleg</option>
+            <option value="verbindung">Verbindungssatz</option>
+            <option value="abschluss">Abschluss</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Bezeichnung</label>
+          <input type="text" id="f-tag" placeholder="z.B. Branche · Lifestyle" class="full-input">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeFormelModal()">Abbrechen</button>
+      <button class="btn-primary" onclick="saveFormel()">Zum Baukasten hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: EINSTELLUNGEN
+═══════════════════════════════════════════════ -->
+<div id="settings-overlay" class="modal-overlay hidden" onclick="closeSettings()">
+  <div class="modal" style="max-width:420px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Einstellungen</h2>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label class="field-label">Anthropic API-Key</label>
+        <input type="password" id="settings-apikey" placeholder="sk-ant-..." class="full-input">
+        <p style="font-size:11.5px;color:var(--hint);margin-top:5px;">Wird nur im Browser (localStorage) gespeichert. Wird für die KI-Analyse benötigt.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeSettings()">Abbrechen</button>
+      <button class="btn-primary" onclick="saveSettings()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: DUPLIKAT-WARNUNG
+═══════════════════════════════════════════════ -->
+<div id="duplicate-overlay" class="modal-overlay hidden">
+  <div class="modal" style="max-width:460px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Mögliches Duplikat gefunden</h2>
+      <button class="modal-close" onclick="closeDuplicate()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Es sieht aus, als hättest du dich bei dieser Firma schon beworben:</p>
+      <div id="duplicate-existing" class="duplicate-card"></div>
+      <p style="font-size:13px;color:var(--muted);margin-top:12px;">Was möchtest du tun?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="duplicateUpdate()">Bestehende aktualisieren</button>
+      <button class="btn-primary" onclick="duplicateCreate()">Trotzdem neu anlegen</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
