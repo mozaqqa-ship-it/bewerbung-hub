@@ -1280,3 +1280,77 @@ select.full-input { cursor: pointer; }
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.65; }
 }
+
+/* ── GEMERKT STATUS ──────────────────────────────── */
+.status-gemerkt { background: var(--amber-bg); color: var(--amber); }
+.status-gemerkt::before { background: #d97706; }
+
+.tt-row.status-gemerkt {
+  border-left-color: #d97706;
+  background: linear-gradient(to right, rgba(217,119,6,0.05) 0%, transparent 180px);
+}
+
+/* ── URL IMPORT MODAL ────────────────────────────── */
+.url-import-modal { max-width: 460px; }
+
+.url-import-modal h2 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+
+.url-import-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.url-import-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.url-import-row input {
+  flex: 1;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  outline: none;
+  transition: border 0.15s;
+}
+
+.url-import-row input:focus { border-color: var(--accent); }
+
+.url-import-status {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 10px;
+  min-height: 18px;
+  line-height: 1.5;
+}
+
+.url-import-loading { color: var(--muted); }
+.url-import-error   { color: var(--danger); }
+
+/* ── BOOKMARK BUTTON ─────────────────────────────── */
+.btn-bookmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-md);
+  background: var(--amber-bg);
+  color: var(--amber);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+.btn-bookmark:hover {
+  background: #fef3c7;
+  border-color: #d97706;
+}

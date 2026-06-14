@@ -43,6 +43,7 @@
           <button onclick="document.getElementById('bulk-pdf-file').click(); closeToolsMenu()">📎 PDFs importieren</button>
         </div>
       </div>
+      <button class="btn-ghost btn-bookmark" onclick="openURLImport()">🔖 Stelle merken</button>
       <button class="btn-primary" onclick="openModal('add')">+ Bewerbung hinzufügen</button>
     </div>
   </div>
@@ -55,6 +56,7 @@
     <input type="text" id="search-input" placeholder="Suchen..." oninput="renderTracker()" class="search-input">
     <select id="filter-status" onchange="renderTracker()" class="filter-select">
       <option value="">Alle Status</option>
+      <option value="gemerkt">Gemerkt</option>
       <option value="offen">Offen</option>
       <option value="eingeladen">Eingeladen</option>
       <option value="absage">Absage</option>
@@ -219,6 +221,7 @@
         <div class="field-group">
           <label class="field-label">Status</label>
           <select id="m-status" class="full-input">
+            <option value="gemerkt">Gemerkt (noch nicht beworben)</option>
             <option value="offen">Offen</option>
             <option value="eingeladen">Eingeladen</option>
             <option value="absage">Absage</option>
@@ -319,6 +322,31 @@
     <div class="modal-footer">
       <button class="btn-ghost" onclick="closeFormelModal()">Abbrechen</button>
       <button class="btn-primary" onclick="saveFormel()">Zum Baukasten hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: STELLE AUS LINK IMPORTIEREN
+═══════════════════════════════════════════════ -->
+<div id="url-import-overlay" class="modal-overlay hidden" onclick="closeURLImport()">
+  <div class="modal url-import-modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Stelle aus Link merken</h2>
+      <button class="modal-close" onclick="closeURLImport()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Füge den Link zur Stellenanzeige ein. Infos werden automatisch ausgelesen – danach kannst du alles anpassen.</p>
+      <div class="field-group">
+        <label class="field-label">Link zur Stellenanzeige</label>
+        <input type="url" id="url-import-input" placeholder="https://www.linkedin.com/jobs/view/..."
+          class="full-input" onkeydown="if(event.key==='Enter')processURLImport()">
+      </div>
+      <div id="url-import-status" class="url-import-status"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeURLImport()">Abbrechen</button>
+      <button class="btn-primary" id="url-import-btn" onclick="processURLImport()">Infos laden →</button>
     </div>
   </div>
 </div>

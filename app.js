@@ -190,7 +190,7 @@ function renderStats() {
 }
 
 function statusLabel(s) {
-  return { offen: 'Offen', eingeladen: 'Eingeladen', absage: 'Absage', angebot: 'Angebot' }[s] || s;
+  return { gemerkt: 'Gemerkt', offen: 'Offen', eingeladen: 'Eingeladen', absage: 'Absage', angebot: 'Angebot' }[s] || s;
 }
 
 function formatDate(d) {
@@ -1111,7 +1111,7 @@ function cycleStatus(id, event) {
   event.stopPropagation();
   const b = STATE.bewerbungen.find(x => x.id === id);
   if (!b) return;
-  const order = ['offen', 'eingeladen', 'angebot', 'absage'];
+  const order = ['gemerkt', 'offen', 'eingeladen', 'angebot', 'absage'];
   b.status = order[(order.indexOf(b.status) + 1) % order.length];
   saveBewerbungenStorage();
   renderTracker();
@@ -1269,6 +1269,155 @@ function closeToolsMenu() {
 document.addEventListener('click', closeToolsMenu);
 
 // ═══════════════════════════════════════════════
+// URL IMPORT – STELLE AUS LINK
+// ═══════════════════════════════════════════════
+
+function openURLImport() {
+  document.getElementById('url-import-input').value = '';
+  document.getElementById('url-import-status').innerHTML = '';
+  document.getElementById('url-import-btn').disabled = false;
+  document.getElementById('url-import-btn').textContent = 'Infos laden →';
+  document.getElementById('url-import-overlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('url-import-input').focus(), 80);
+}
+
+function closeURLImport() {
+  document.getElementById('url-import-overlay').classList.add('hidden');
+}
+
+async function processURLImport() {
+  const url = document.getElementById('url-import-input').value.trim();
+  if (!url) { showToast('Bitte einen Link eingeben.'); return; }
+
+  const btn = document.getElementById('url-import-btn');
+  const statusEl = document.getElementById('url-import-status');
+  btn.disabled = true;
+  btn.textContent = 'Lädt…';
+  statusEl.innerHTML = '<span class="url-import-loading">Seite wird gelesen…</span>';
+
+  try {
+    const extracted = await scrapeJobURL(url);
+    closeURLImport();
+    openModal('add');
+    document.getElementById('m-status').value = 'gemerkt';
+    document.getElementById('m-link').value = url;
+    if (extracted.firma) document.getElementById('m-firma').value = extracted.firma;
+    if (extracted.stelle) document.getElementById('m-stelle').value = extracted.stelle;
+    if (extracted.frist) document.getElementById('m-frist').value = extracted.frist;
+    if (extracted.plattform) document.getElementById('m-plattform').value = extracted.plattform;
+    document.getElementById('m-firma').focus();
+
+    if (extracted.firma || extracted.stelle) {
+      showToast('Infos erfolgreich ausgelesen – bitte prüfen!');
+    } else {
+      showToast('Keine Infos gefunden – bitte manuell ausfüllen.');
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<span class="url-import-error">Fehler: ${escHtml(e.message || 'Seite konnte nicht geladen werden.')}<br>Bitte manuell ausfüllen.</span>`;
+    btn.disabled = false;
+    btn.textContent = 'Trotzdem öffnen';
+    btn.onclick = () => {
+      closeURLImport();
+      openModal('add');
+      document.getElementById('m-status').value = 'gemerkt';
+      document.getElementById('m-link').value = url;
+      btn.onclick = processURLImport;
+    };
+  }
+}
+
+async function scrapeJobURL(url) {
+  // Use allorigins CORS proxy to fetch the page HTML
+  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
+  const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
+  if (!resp.ok) throw new Error('Proxy nicht erreichbar');
+  const data = await resp.json();
+  const html = data.contents;
+  if (!html) throw new Error('Kein Inhalt zurückgegeben');
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  // 1. Try JSON-LD structured data (most reliable)
+  const ldScripts = doc.querySelectorAll('script[type="application/ld+json"]');
+  for (const script of ldScripts) {
+    try {
+      const json = JSON.parse(script.textContent);
+      const job = findJobPosting(json);
+      if (job) {
+        const result = extractFromJobPosting(job);
+        result.plattform = detectPlatform(url);
+        return result;
+      }
+    } catch {}
+  }
+
+  // 2. Fallback: Open Graph + page title
+  const ogTitle    = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+  const ogSiteName = doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content') || '';
+  const pageTitle  = doc.querySelector('title')?.textContent || '';
+  const h1         = doc.querySelector('h1')?.textContent?.trim() || '';
+
+  const stelle = cleanText(ogTitle || h1 || splitTitle(pageTitle).stelle);
+  const firma  = cleanText(ogSiteName || splitTitle(pageTitle).firma);
+  const plattform = detectPlatform(url);
+
+  return { stelle, firma, plattform };
+}
+
+function findJobPosting(json) {
+  if (!json) return null;
+  if (Array.isArray(json)) {
+    for (const item of json) { const f = findJobPosting(item); if (f) return f; }
+    return null;
+  }
+  if (json['@graph']) { return findJobPosting(json['@graph']); }
+  if (json['@type'] === 'JobPosting') return json;
+  return null;
+}
+
+function extractFromJobPosting(job) {
+  const stelle  = cleanText(job.title || job.name || '');
+  const firma   = cleanText(
+    job.hiringOrganization?.name || job.employer?.name ||
+    job.hiringOrganization || ''
+  );
+  let frist = '';
+  if (job.applicationDeadline) {
+    const d = new Date(job.applicationDeadline);
+    if (!isNaN(d)) frist = d.toISOString().split('T')[0];
+  }
+  return { stelle, firma, frist };
+}
+
+function splitTitle(title) {
+  // "Senior Developer - RYZON GmbH | LinkedIn" → stelle: "Senior Developer", firma: "RYZON GmbH"
+  const parts = title.split(/\s*[|\-–]\s*/);
+  if (parts.length >= 2) {
+    return { stelle: parts[0].trim(), firma: parts.slice(1, -1).join(' – ').trim() || parts[1].trim() };
+  }
+  return { stelle: title.trim(), firma: '' };
+}
+
+function detectPlatform(url) {
+  const host = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
+  if (host.includes('linkedin'))   return 'LinkedIn';
+  if (host.includes('stepstone'))  return 'Stepstone';
+  if (host.includes('indeed'))     return 'Indeed';
+  if (host.includes('xing'))       return 'XING';
+  if (host.includes('monster'))    return 'Monster';
+  if (host.includes('glassdoor'))  return 'Glassdoor';
+  if (host.includes('arbeitsagentur')) return 'Bundesagentur';
+  if (host.includes('join'))       return 'Join';
+  if (host.includes('interngship') || host.includes('praktikum')) return 'Praktikum.info';
+  return '';
+}
+
+function cleanText(str) {
+  return String(str || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+// ═══════════════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════════════
 
@@ -1306,6 +1455,7 @@ function escHtml(str) {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    closeURLImport();
     closeDetail();
     closeModal();
     closeFormelModal();
