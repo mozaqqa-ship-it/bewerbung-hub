@@ -757,3 +757,102 @@ select.full-input { cursor: pointer; }
   }
   .print-table tr:nth-child(even) td { background: #fafafa; }
 }
+
+/* ═══════════════════════════════════════════════
+   PDF SCAN PANEL
+═══════════════════════════════════════════════ */
+
+.pdf-scan-panel {
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pdf-scan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+
+.pdf-scan-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pdf-scan-scanning {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.pdf-scan-apply-all {
+  font-size: 11px;
+  padding: 3px 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.pdf-scan-apply-all:hover { opacity: 0.85; }
+
+.pdf-scan-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pdf-scan-field:last-child { border-bottom: none; }
+
+.pdf-scan-label {
+  font-size: 11px;
+  color: var(--muted);
+  width: 90px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.pdf-scan-val {
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pdf-scan-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pdf-scan-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.pdf-scan-applied {
+  color: var(--muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}

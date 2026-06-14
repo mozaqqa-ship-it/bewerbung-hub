@@ -253,6 +253,13 @@
         </div>
         <input type="file" id="modal-file" accept=".pdf,application/pdf" multiple class="js-hidden" onchange="modalFilesSelected(event)">
         <div id="modal-attachment-list" class="attachment-list"></div>
+        <div id="pdf-scan-result" class="pdf-scan-panel js-hidden">
+          <div class="pdf-scan-header">
+            <span class="pdf-scan-title">📄 Erkannte Felder</span>
+            <button class="pdf-scan-apply-all" onclick="applyAllScanFields()">Alle übernehmen</button>
+          </div>
+          <div id="pdf-scan-fields"></div>
+        </div>
       </div>
 
     </div>
@@ -327,6 +334,13 @@
 
 <div class="toast hidden" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>

@@ -10,7 +10,8 @@ const STATE = {
   editId: null,
   formelEditId: null,
   pendingAttachments: [],
-  pendingDuplicate: null
+  pendingDuplicate: null,
+  pendingScanFields: null
 };
 
 // ═══════════════════════════════════════════════
@@ -221,7 +222,9 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
   STATE.editId = null;
   STATE.pendingAttachments = [];
+  STATE.pendingScanFields = null;
   document.getElementById('modal-file').value = '';
+  document.getElementById('pdf-scan-result').classList.add('js-hidden');
 }
 
 function saveBewerbung() {
@@ -323,12 +326,17 @@ async function addModalFiles(files) {
       STATE.pendingAttachments.push({ name: file.name, size: file.size, base64 });
     } catch (e) { showToast('Fehler beim Lesen: ' + file.name); }
   }
-  // Auto-fill Firma from first PDF filename if the field is still empty
   if (isFirst && STATE.pendingAttachments.length > 0) {
-    const firmaField = document.getElementById('m-firma');
-    if (firmaField && !firmaField.value.trim()) {
-      const name = STATE.pendingAttachments[0].name;
-      firmaField.value = name.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
+    // Scan first PDF for fields (only when adding new Bewerbung)
+    if (!STATE.editId) {
+      runPDFScan(STATE.pendingAttachments[0]);
+    } else {
+      // In edit mode: just auto-fill Firma if empty
+      const firmaField = document.getElementById('m-firma');
+      if (firmaField && !firmaField.value.trim()) {
+        const name = STATE.pendingAttachments[0].name;
+        firmaField.value = name.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
+      }
     }
   }
   renderModalAttachments();
@@ -365,6 +373,178 @@ function openAttachment(idx) {
   for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
   const blob = new Blob([bytes], { type: 'application/pdf' });
   window.open(URL.createObjectURL(blob), '_blank');
+}
+
+// ═══════════════════════════════════════════════
+// PDF SCAN (text extraction + regex field detection)
+// ═══════════════════════════════════════════════
+
+async function extractPDFText(base64) {
+  if (typeof pdfjsLib === 'undefined') return '';
+  try {
+    const raw = base64.includes(',') ? base64.split(',')[1] : base64;
+    const binStr = atob(raw);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+    const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+    let text = '';
+    const maxPages = Math.min(pdf.numPages, 3);
+    for (let p = 1; p <= maxPages; p++) {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      text += content.items.map(it => it.str).join(' ') + '\n';
+    }
+    return text.trim().slice(0, 6000);
+  } catch (e) {
+    return '';
+  }
+}
+
+function scanPDFForFields(text) {
+  const result = {};
+  const t = text.replace(/[ \t]+/g, ' ');
+
+  // Stelle
+  const stellePatterns = [
+    // "Betreff: Bewerbung als [Stelle]"
+    /Betreff\s*[:\-]\s*(?:Ihre\s+)?(?:Bewerbung\s+(?:als\s+|um\s+(?:die\s+)?(?:Stelle\s+(?:als?\s+)|Position\s+(?:als?\s+))?)?)([^,\n\r]{5,80}?)(?=\s*(?:bei\s|–|-|\n|$))/i,
+    // "Bewerbung als [Stelle] bei"
+    /Bewerbung\s+(?:um\s+(?:die\s+)?(?:Stelle\s+)?)?als\s+([^,\n\r\-–]{5,80}?)(?=\s*(?:bei\s|–\s|-\s|\n|,|$))/i,
+    // "Stelle als [X]" or "Position: [X]"
+    /(?:Stelle\s+als|Position)\s*:?\s+([^,\n\r]{5,70})/i,
+    // Job title before "(m/w/d)"
+    /([A-ZÄÖÜ][^\n\r(]{8,60}?)\s*\(m[\s/]?w[\s/]?d\)/i,
+  ];
+
+  for (const pat of stellePatterns) {
+    const m = t.match(pat);
+    if (m && m[1] && m[1].trim().length > 2) {
+      result.stelle = m[1].trim().replace(/\s+/g, ' ');
+      break;
+    }
+  }
+
+  // Ansprechperson
+  const kontaktPatterns = [
+    // "Sehr geehrte Frau Müller"
+    /Sehr\s+geehrte[rs]?\s+(Frau|Herr)\s+(?:Dr\.?\s+|Prof\.?\s+)?([A-ZÄÖÜ][a-zäöüß]+-?[A-ZÄÖÜa-zäöüß]*(?:\s+[A-ZÄÖÜ][a-zäöüß]+-?[a-zäöüß]*)?)/i,
+    // "Ansprechpartner(in): [Name]"
+    /Ansprechpartner(?:in)?\s*:\s*(?:Frau\s+|Herr\s+)?(?:Dr\.?\s+)?([A-ZÄÖÜ][^\n\r,]{3,40})/i,
+  ];
+
+  for (const pat of kontaktPatterns) {
+    const m = t.match(pat);
+    if (m) {
+      if (pat.source.includes('geehrte')) {
+        result.kontakt = (m[1] + ' ' + m[2]).trim();
+      } else {
+        result.kontakt = m[1].trim().replace(/\s+/g, ' ');
+      }
+      break;
+    }
+  }
+
+  // Firma: "bei [Firma]" in Bewerbung context
+  const firmaPatterns = [
+    /Bewerbung[^.\n]{0,80}?\s+bei\s+(?:der\s+|dem\s+|einem\s+|einer\s+)?([A-ZÄÖÜ][^\n\r,.(]{3,60}?)(?=\s*[,.\n–\-]|$)/i,
+    /An\s+(?:die\s+|das\s+|den\s+)?([A-ZÄÖÜ][A-ZÄÖÜa-zäöüß\s&\-]{5,60}?)(?=\n|z\.?\s*Hd|Frau|Herr)/i,
+  ];
+
+  for (const pat of firmaPatterns) {
+    const m = t.match(pat);
+    if (m && m[1] && m[1].trim().length > 2) {
+      result.firma = m[1].trim().replace(/\s+/g, ' ');
+      break;
+    }
+  }
+
+  // Datum: DD.MM.YYYY
+  const datumMatch = t.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (datumMatch) {
+    const [, day, month, year] = datumMatch;
+    const d = new Date(+year, +month - 1, +day);
+    if (!isNaN(d.getTime()) && +year >= 2020) {
+      result.datum = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+
+  return result;
+}
+
+const SCAN_FIELD_LABELS = { stelle: 'Stelle', kontakt: 'Ansprechperson', firma: 'Firma', datum: 'Datum' };
+const SCAN_FIELD_IDS   = { stelle: 'm-stelle', kontakt: 'm-kontakt', firma: 'm-firma', datum: 'm-datum' };
+
+async function runPDFScan(attachment) {
+  const panel = document.getElementById('pdf-scan-result');
+  const fieldsEl = document.getElementById('pdf-scan-fields');
+
+  panel.classList.remove('js-hidden');
+  fieldsEl.innerHTML = '<div class="pdf-scan-scanning">Scanne PDF…</div>';
+  document.querySelector('#pdf-scan-result .pdf-scan-apply-all').style.display = 'none';
+
+  const text = await extractPDFText(attachment.base64);
+
+  if (!text) {
+    fieldsEl.innerHTML = '<div class="pdf-scan-scanning">Kein Text gefunden (gescannte PDF?).</div>';
+    return;
+  }
+
+  const fields = scanPDFForFields(text);
+  STATE.pendingScanFields = fields;
+
+  // Auto-fill Firma if still empty
+  const firmaField = document.getElementById('m-firma');
+  if (firmaField && !firmaField.value.trim()) {
+    if (fields.firma) {
+      firmaField.value = fields.firma;
+    } else {
+      firmaField.value = attachment.name.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
+    }
+  }
+
+  const entries = Object.entries(fields).filter(([k]) => k !== 'firma'); // Firma already applied above
+  if (entries.length === 0 && !fields.firma) {
+    fieldsEl.innerHTML = '<div class="pdf-scan-scanning">Keine weiteren Felder erkannt.</div>';
+    return;
+  }
+
+  // Show only fields that aren't already filled
+  const toShow = Object.entries(fields).filter(([key]) => {
+    const el = document.getElementById(SCAN_FIELD_IDS[key]);
+    return el && !el.value.trim();
+  });
+
+  if (toShow.length === 0) {
+    panel.classList.add('js-hidden');
+    return;
+  }
+
+  document.querySelector('#pdf-scan-result .pdf-scan-apply-all').style.display = '';
+  fieldsEl.innerHTML = toShow.map(([key, val]) => `
+    <div class="pdf-scan-field" id="scan-row-${key}">
+      <span class="pdf-scan-label">${SCAN_FIELD_LABELS[key]}</span>
+      <span class="pdf-scan-val" title="${escHtml(val)}">${escHtml(val)}</span>
+      <button class="pdf-scan-btn" onclick="applyScanField('${key}')">Übernehmen</button>
+    </div>
+  `).join('');
+}
+
+function applyScanField(key) {
+  const val = STATE.pendingScanFields && STATE.pendingScanFields[key];
+  if (!val) return;
+  const el = document.getElementById(SCAN_FIELD_IDS[key]);
+  if (el) el.value = val;
+  const row = document.getElementById('scan-row-' + key);
+  if (row) row.querySelector('.pdf-scan-btn').outerHTML = '<span class="pdf-scan-applied">✓</span>';
+}
+
+function applyAllScanFields() {
+  if (!STATE.pendingScanFields) return;
+  Object.keys(STATE.pendingScanFields).forEach(key => {
+    const el = document.getElementById(SCAN_FIELD_IDS[key]);
+    if (el && !el.value.trim()) el.value = STATE.pendingScanFields[key];
+  });
+  document.getElementById('pdf-scan-result').classList.add('js-hidden');
 }
 
 // ═══════════════════════════════════════════════
