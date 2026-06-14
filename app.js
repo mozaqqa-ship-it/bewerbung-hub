@@ -294,7 +294,9 @@ function dzLeave(e, id) {
 async function dzDrop(e, id, forMappe) {
   e.preventDefault();
   document.getElementById(id).classList.remove('active');
-  const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
+  const files = [...e.dataTransfer.files].filter(f =>
+    f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+  );
   if (files.length === 0) { showToast('Nur PDF-Dateien werden unterstützt.'); return; }
   if (forMappe) { await addMappeFiles(files); } else { await addModalFiles(files); }
 }
