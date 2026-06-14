@@ -856,3 +856,93 @@ select.full-input { cursor: pointer; }
   font-size: 11px;
   flex-shrink: 0;
 }
+
+/* ═══════════════════════════════════════════════
+   TOOLS DROPDOWN
+═══════════════════════════════════════════════ */
+
+.tools-dropdown { position: relative; }
+
+.tools-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 210px;
+  z-index: 200;
+  overflow: hidden;
+  animation: menuIn 0.12s ease;
+}
+
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tools-menu button {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 13px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+  transition: background 0.1s;
+}
+
+.tools-menu button:last-child { border-bottom: none; }
+.tools-menu button:hover { background: var(--surface2); }
+
+/* ═══════════════════════════════════════════════
+   TRACKER CARD EXTRAS
+═══════════════════════════════════════════════ */
+
+.tracker-age {
+  font-size: 11px;
+  color: var(--hint);
+}
+
+.tracker-att {
+  cursor: pointer;
+  transition: color 0.1s;
+}
+.tracker-att:hover { color: var(--accent); }
+
+.tracker-frist {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--surface2);
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.frist-warn {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.frist-urgent {
+  background: var(--danger-bg);
+  color: var(--danger);
+  animation: pulse 1.5s ease infinite;
+}
+
+.frist-over {
+  background: var(--danger-bg);
+  color: var(--danger);
+  opacity: 0.7;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}

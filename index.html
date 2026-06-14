@@ -34,10 +34,15 @@
       <p class="page-sub">Übersicht aller laufenden und abgeschlossenen Bewerbungen</p>
     </div>
     <div class="btn-row">
-      <button class="btn-ghost" onclick="exportJSON()">↓ Export</button>
-      <button class="btn-ghost" onclick="exportPDF()">⎙ PDF</button>
-      <button class="btn-ghost" onclick="document.getElementById('import-file').click()">↑ Import</button>
-      <button class="btn-ghost" onclick="document.getElementById('bulk-pdf-file').click()">📎 PDFs importieren</button>
+      <div class="tools-dropdown">
+        <button class="btn-ghost" onclick="toggleToolsMenu(event)">⋯ Werkzeuge</button>
+        <div class="tools-menu js-hidden" id="tools-menu">
+          <button onclick="exportJSON(); closeToolsMenu()">↓ Als JSON exportieren</button>
+          <button onclick="exportPDF(); closeToolsMenu()">⎙ Als PDF drucken</button>
+          <button onclick="document.getElementById('import-file').click(); closeToolsMenu()">↑ JSON importieren</button>
+          <button onclick="document.getElementById('bulk-pdf-file').click(); closeToolsMenu()">📎 PDFs importieren</button>
+        </div>
+      </div>
       <button class="btn-primary" onclick="openModal('add')">+ Bewerbung hinzufügen</button>
     </div>
   </div>
@@ -202,11 +207,11 @@
       </div>
       <div class="field-row">
         <div class="field-group">
-          <label class="field-label">Stelle *</label>
+          <label class="field-label">Stelle</label>
           <input type="text" id="m-stelle" placeholder="z.B. Content Managerin" class="full-input">
         </div>
         <div class="field-group">
-          <label class="field-label">Datum</label>
+          <label class="field-label">Bewerbungsdatum</label>
           <input type="date" id="m-datum" class="full-input">
         </div>
       </div>
@@ -221,16 +226,23 @@
           </select>
         </div>
         <div class="field-group">
+          <label class="field-label">Bewerbungsfrist</label>
+          <input type="date" id="m-frist" class="full-input">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
           <label class="field-label">Plattform</label>
           <input type="text" id="m-plattform" placeholder="z.B. LinkedIn, Direkt..." class="full-input">
         </div>
-      </div>
-      <div class="field-group">
-        <label class="field-label">Ansprechpartner:in</label>
-        <input type="text" id="m-kontakt" placeholder="z.B. Frau Mörchen" class="full-input">
+        <div class="field-group">
+          <label class="field-label">Ansprechpartner:in</label>
+          <input type="text" id="m-kontakt" placeholder="z.B. Frau Mörchen" class="full-input">
+        </div>
       </div>
       <div class="field-group">
         <label class="field-label">Link zur Stellenanzeige</label>
+
         <input type="url" id="m-link" placeholder="https://..." class="full-input">
       </div>
       <div class="field-group">

@@ -115,15 +115,19 @@ function renderTracker() {
     <div class="tracker-card status-${b.status}" onclick="openModal('edit', '${b.id}')">
       <div>
         <div class="tracker-firma">${escHtml(b.firma)}</div>
-        <div class="tracker-stelle">${escHtml(b.stelle)}</div>
+        ${b.stelle && b.stelle !== '–' ? `<div class="tracker-stelle">${escHtml(b.stelle)}</div>` : ''}
       </div>
       <div class="tracker-meta">
         ${b.datum ? `<span class="tracker-datum">${formatDate(b.datum)}</span>` : ''}
+        ${b.datum ? `<span class="tracker-age">${daysAgo(b.datum)}</span>` : ''}
         ${b.plattform ? `<span class="tracker-plattform">${escHtml(b.plattform)}</span>` : ''}
         ${b.kontakt ? `<span class="tracker-datum">↳ ${escHtml(b.kontakt)}</span>` : ''}
-        ${b.attachments && b.attachments.length > 0 ? `<span class="tracker-att">📎 ${b.attachments.length}</span>` : ''}
+        ${deadlineChip(b.frist)}
+        ${b.attachments && b.attachments.length > 0 ? `<span class="tracker-att" onclick="openFirstAttachment('${b.id}', event)" title="PDF öffnen">📎 ${b.attachments.length}</span>` : ''}
       </div>
-      <span class="status-badge status-${b.status}">${statusLabel(b.status)}</span>
+      <span class="status-badge status-${b.status}" onclick="cycleStatus('${b.id}', event)" title="Klicken zum Status wechseln" style="cursor:pointer;">
+        ${statusLabel(b.status)}
+      </span>
       <div class="tracker-actions" onclick="event.stopPropagation()">
         ${b.link ? `<button class="btn-icon" onclick="openExternalLink('${b.id}')" title="Stellenanzeige öffnen">↗</button>` : ''}
         <button class="btn-icon" onclick="deleteBewerbung('${b.id}')" title="Löschen">✕</button>
@@ -190,9 +194,10 @@ function openModal(mode, id) {
     const b = STATE.bewerbungen.find(x => x.id === id);
     if (b) {
       document.getElementById('m-firma').value = b.firma || '';
-      document.getElementById('m-stelle').value = b.stelle || '';
+      document.getElementById('m-stelle').value = (b.stelle === '–' ? '' : b.stelle) || '';
       document.getElementById('m-datum').value = b.datum || '';
       document.getElementById('m-status').value = b.status || 'offen';
+      document.getElementById('m-frist').value = b.frist || '';
       document.getElementById('m-plattform').value = b.plattform || '';
       document.getElementById('m-kontakt').value = b.kontakt || '';
       document.getElementById('m-link').value = b.link || '';
@@ -206,6 +211,7 @@ function openModal(mode, id) {
     document.getElementById('m-firma').value = '';
     document.getElementById('m-stelle').value = '';
     document.getElementById('m-status').value = 'offen';
+    document.getElementById('m-frist').value = '';
     document.getElementById('m-plattform').value = '';
     document.getElementById('m-kontakt').value = '';
     document.getElementById('m-link').value = '';
@@ -224,6 +230,7 @@ function closeModal() {
   STATE.pendingAttachments = [];
   STATE.pendingScanFields = null;
   document.getElementById('modal-file').value = '';
+  document.getElementById('m-frist').value = '';
   document.getElementById('pdf-scan-result').classList.add('js-hidden');
 }
 
@@ -247,6 +254,7 @@ function saveBewerbung() {
     stelle,
     datum: document.getElementById('m-datum').value,
     status: document.getElementById('m-status').value,
+    frist: document.getElementById('m-frist').value,
     plattform: document.getElementById('m-plattform').value.trim(),
     kontakt: document.getElementById('m-kontakt').value.trim(),
     link: document.getElementById('m-link').value.trim(),
@@ -545,6 +553,7 @@ function applyAllScanFields() {
     if (el && !el.value.trim()) el.value = STATE.pendingScanFields[key];
   });
   document.getElementById('pdf-scan-result').classList.add('js-hidden');
+  document.querySelector('.modal-body').scrollTop = 0;
 }
 
 // ═══════════════════════════════════════════════
@@ -947,23 +956,13 @@ function usePreviewForCheck() {
 }
 
 function saveToTracker() {
-  const firma = STATE.firma || prompt('Für welches Unternehmen ist dieses Anschreiben?');
-  if (!firma) return;
-  const stelle = prompt('Welche Stelle?') || '–';
-  const data = {
-    id: 'b-' + Date.now(),
-    firma, stelle,
-    datum: new Date().toISOString().split('T')[0],
-    status: 'offen',
-    plattform: '', kontakt: '', link: '',
-    notizen: 'Anschreiben über Baukasten erstellt.',
-    attachments: []
-  };
-  STATE.bewerbungen.unshift(data);
-  saveBewerbungenStorage();
-  showToast('Als Bewerbung gespeichert!');
   showPage('tracker');
-  renderTracker();
+  openModal('add');
+  if (STATE.firma) {
+    document.getElementById('m-firma').value = STATE.firma;
+    document.getElementById('m-firma').focus();
+  }
+  document.getElementById('m-notizen').value = 'Anschreiben über Baukasten erstellt.';
 }
 
 // ═══════════════════════════════════════════════
@@ -1080,6 +1079,71 @@ function deleteFormel(id) {
   renderBaukasten();
   showToast('Gelöscht.');
 }
+
+// ═══════════════════════════════════════════════
+// TRACKER HELPERS
+// ═══════════════════════════════════════════════
+
+function cycleStatus(id, event) {
+  event.stopPropagation();
+  const b = STATE.bewerbungen.find(x => x.id === id);
+  if (!b) return;
+  const order = ['offen', 'eingeladen', 'angebot', 'absage'];
+  b.status = order[(order.indexOf(b.status) + 1) % order.length];
+  saveBewerbungenStorage();
+  renderTracker();
+  showToast('Status: ' + statusLabel(b.status));
+}
+
+function daysAgo(datum) {
+  if (!datum) return '';
+  const days = Math.floor((Date.now() - new Date(datum)) / 86400000);
+  if (days < 0) return '';
+  if (days === 0) return 'Heute';
+  if (days === 1) return 'Gestern';
+  if (days < 7) return `vor ${days} Tagen`;
+  if (days < 30) return `vor ${Math.floor(days / 7)} Wo.`;
+  return `vor ${Math.floor(days / 30)} Mon.`;
+}
+
+function deadlineChip(frist) {
+  if (!frist) return '';
+  const days = Math.floor((new Date(frist) - Date.now()) / 86400000);
+  if (days < 0) return `<span class="tracker-frist frist-over">‼ Frist abgelaufen</span>`;
+  if (days === 0) return `<span class="tracker-frist frist-urgent">‼ Frist heute</span>`;
+  if (days <= 3) return `<span class="tracker-frist frist-urgent">⚠ Frist in ${days} Tag${days === 1 ? '' : 'en'}</span>`;
+  if (days <= 7) return `<span class="tracker-frist frist-warn">⚠ Frist in ${days} Tagen</span>`;
+  return `<span class="tracker-frist">Frist: ${formatDate(frist)}</span>`;
+}
+
+function openFirstAttachment(id, event) {
+  event.stopPropagation();
+  const b = STATE.bewerbungen.find(x => x.id === id);
+  if (!b || !b.attachments || !b.attachments.length) return;
+  const a = b.attachments[0];
+  const raw = a.base64.includes(',') ? a.base64.split(',')[1] : a.base64;
+  const byteStr = atob(raw);
+  const bytes = new Uint8Array(byteStr.length);
+  for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  window.open(URL.createObjectURL(blob), '_blank');
+}
+
+// ═══════════════════════════════════════════════
+// TOOLS DROPDOWN
+// ═══════════════════════════════════════════════
+
+function toggleToolsMenu(event) {
+  event.stopPropagation();
+  document.getElementById('tools-menu').classList.toggle('js-hidden');
+}
+
+function closeToolsMenu() {
+  const m = document.getElementById('tools-menu');
+  if (m) m.classList.add('js-hidden');
+}
+
+document.addEventListener('click', closeToolsMenu);
 
 // ═══════════════════════════════════════════════
 // UTILS
