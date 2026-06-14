@@ -256,6 +256,110 @@ body {
 .tracker-empty-title { font-weight: 600; font-size: 15px; color: var(--text); margin-bottom: 5px; }
 .tracker-empty-sub { font-size: 13px; color: var(--muted); }
 
+/* ── TRACKER TABLE ── */
+
+.tracker-table {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.tt-cols {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 105px 140px 120px 110px 58px;
+}
+
+.tt-header {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 105px 140px 120px 110px 58px;
+  align-items: center;
+  padding: 9px 12px 9px 22px;
+  border-bottom: 1px solid var(--border-md);
+  background: var(--surface2);
+}
+
+.tt-header > span {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--hint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 105px 140px 120px 110px 58px;
+  align-items: center;
+  padding: 10px 12px 10px 22px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+
+.tt-row:last-child { border-bottom: none; }
+
+.tt-row:hover { background: var(--surface2); }
+
+.tt-row::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+}
+.tt-row.status-offen::before      { background: var(--hint); }
+.tt-row.status-eingeladen::before  { background: var(--accent); }
+.tt-row.status-absage::before      { background: var(--danger); }
+.tt-row.status-angebot::before     { background: var(--blue); }
+
+.tt-main { min-width: 0; }
+
+.tt-firma {
+  font-weight: 600;
+  font-size: 13.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-stelle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tt-att {
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.5;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+.tt-att:hover { opacity: 1; }
+
+.tt-datum-col { min-width: 0; }
+.tt-datum { font-size: 12px; color: var(--text); white-space: nowrap; }
+.tt-age   { font-size: 11px; color: var(--hint); margin-top: 1px; }
+
+.tt-plat-col { min-width: 0; overflow: hidden; }
+.tt-kontakt  { font-size: 11px; color: var(--hint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.tt-frist-col  { min-width: 0; }
+.tt-status-col { min-width: 0; }
+.tt-actions    { display: flex; gap: 2px; justify-content: flex-end; }
+
 /* ── BAUKASTEN ── */
 .baukasten-grid {
   display: grid;

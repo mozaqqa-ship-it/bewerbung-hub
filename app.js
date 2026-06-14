@@ -111,29 +111,52 @@ function renderTracker() {
     return;
   }
 
-  el.innerHTML = list.map(b => `
-    <div class="tracker-card status-${b.status}" onclick="openModal('edit', '${b.id}')">
-      <div>
-        <div class="tracker-firma">${escHtml(b.firma)}</div>
-        ${b.stelle && b.stelle !== '–' ? `<div class="tracker-stelle">${escHtml(b.stelle)}</div>` : ''}
+  el.innerHTML = `
+    <div class="tracker-table">
+      <div class="tt-header">
+        <span>Firma / Stelle</span>
+        <span>Datum</span>
+        <span>Plattform</span>
+        <span>Frist</span>
+        <span>Status</span>
+        <span></span>
       </div>
-      <div class="tracker-meta">
-        ${b.datum ? `<span class="tracker-datum">${formatDate(b.datum)}</span>` : ''}
-        ${b.datum ? `<span class="tracker-age">${daysAgo(b.datum)}</span>` : ''}
-        ${b.plattform ? `<span class="tracker-plattform">${escHtml(b.plattform)}</span>` : ''}
-        ${b.kontakt ? `<span class="tracker-datum">↳ ${escHtml(b.kontakt)}</span>` : ''}
-        ${deadlineChip(b.frist)}
-        ${b.attachments && b.attachments.length > 0 ? `<span class="tracker-att" onclick="openFirstAttachment('${b.id}', event)" title="PDF öffnen">📎 ${b.attachments.length}</span>` : ''}
-      </div>
-      <span class="status-badge status-${b.status}" onclick="cycleStatus('${b.id}', event)" title="Klicken zum Status wechseln" style="cursor:pointer;">
-        ${statusLabel(b.status)}
-      </span>
-      <div class="tracker-actions" onclick="event.stopPropagation()">
-        ${b.link ? `<button class="btn-icon" onclick="openExternalLink('${b.id}')" title="Stellenanzeige öffnen">↗</button>` : ''}
-        <button class="btn-icon" onclick="deleteBewerbung('${b.id}')" title="Löschen">✕</button>
-      </div>
+      ${list.map(b => `
+        <div class="tt-row status-${b.status}" onclick="openModal('edit', '${b.id}')">
+          <div class="tt-main">
+            <div class="tt-firma">
+              ${escHtml(b.firma)}
+              ${b.attachments && b.attachments.length > 0
+                ? `<span class="tt-att" onclick="openFirstAttachment('${b.id}', event)" title="PDF öffnen">📎</span>`
+                : ''}
+            </div>
+            ${b.stelle && b.stelle !== '–' ? `<div class="tt-stelle">${escHtml(b.stelle)}</div>` : ''}
+          </div>
+          <div class="tt-datum-col">
+            ${b.datum ? `<div class="tt-datum">${formatDate(b.datum)}</div>` : ''}
+            ${b.datum ? `<div class="tt-age">${daysAgo(b.datum)}</div>` : ''}
+          </div>
+          <div class="tt-plat-col">
+            ${b.plattform ? `<span class="tracker-plattform">${escHtml(b.plattform)}</span>` : ''}
+            ${b.kontakt ? `<div class="tt-kontakt">↳ ${escHtml(b.kontakt)}</div>` : ''}
+          </div>
+          <div class="tt-frist-col">${deadlineChip(b.frist)}</div>
+          <div class="tt-status-col">
+            <span class="status-badge status-${b.status}"
+              onclick="cycleStatus('${b.id}', event)"
+              title="Klicken zum Status wechseln"
+              style="cursor:pointer;">
+              ${statusLabel(b.status)}
+            </span>
+          </div>
+          <div class="tt-actions" onclick="event.stopPropagation()">
+            ${b.link ? `<button class="btn-icon" onclick="openExternalLink('${b.id}')" title="Stellenanzeige öffnen">↗</button>` : ''}
+            <button class="btn-icon" onclick="deleteBewerbung('${b.id}')" title="Löschen">✕</button>
+          </div>
+        </div>
+      `).join('')}
     </div>
-  `).join('');
+  `;
 }
 
 function renderStats() {
