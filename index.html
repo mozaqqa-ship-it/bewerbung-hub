@@ -22,7 +22,6 @@
     <button class="nav-tab" onclick="showPage('formeln')">Formulierungen</button>
     <button class="nav-tab" onclick="showPage('analyse')">Analyse</button>
   </div>
-  <button class="btn-icon nav-settings" onclick="openSettings()" title="Einstellungen">⚙</button>
 </nav>
 
 <!-- ═══════════════════════════════════════════════
@@ -38,10 +37,12 @@
       <button class="btn-ghost" onclick="exportJSON()">↓ Export</button>
       <button class="btn-ghost" onclick="exportPDF()">⎙ PDF</button>
       <button class="btn-ghost" onclick="document.getElementById('import-file').click()">↑ Import</button>
+      <button class="btn-ghost" onclick="document.getElementById('bulk-pdf-file').click()">📎 PDFs importieren</button>
       <button class="btn-primary" onclick="openModal('add')">+ Bewerbung hinzufügen</button>
     </div>
   </div>
   <input type="file" id="import-file" accept=".json" class="js-hidden" onchange="importJSON(event)">
+  <input type="file" id="bulk-pdf-file" accept=".pdf,application/pdf" multiple class="js-hidden" onchange="bulkPDFSelected(event)">
 
   <div class="stats-row" id="stats-row"></div>
 
@@ -165,50 +166,18 @@
   <div class="page-header">
     <div>
       <h1>Analyse</h1>
-      <p class="page-sub">KI-Analyse deiner Bewerbungsmappe und Statistiken</p>
+      <p class="page-sub">Statistiken und Zeitleiste deiner Bewerbungen</p>
     </div>
   </div>
 
   <div class="analyse-grid">
     <div class="analyse-left">
       <div class="card">
-        <div class="card-title" style="margin-bottom:8px;">Bewerbungsmappe analysieren</div>
-        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">Lade mehrere PDFs hoch (Lebenslauf, Anschreiben, Zeugnisse) für eine KI-Analyse aller Dokumente.</p>
-        <div id="mappe-dropzone" class="dropzone"
-             ondragover="dzOver(event,'mappe-dropzone')"
-             ondragleave="dzLeave(event,'mappe-dropzone')"
-             ondrop="dzDrop(event,'mappe-dropzone',true)">
-          <div class="dz-body">
-            <div class="dz-icon">📂</div>
-            <div class="dz-text">PDFs hierher ziehen oder <span class="dz-link" onclick="document.getElementById('mappe-file').click()">auswählen</span></div>
-            <div class="dz-hint">Mehrere Dateien gleichzeitig möglich</div>
-          </div>
-        </div>
-        <input type="file" id="mappe-file" accept=".pdf,application/pdf" multiple class="js-hidden" onchange="mappeFilesSelected(event)">
-        <div id="mappe-filelist" class="attachment-list" style="margin-top:8px;"></div>
-        <div id="mappe-ai-bar" class="ai-bar js-hidden" style="margin-top:10px;">
-          <select id="mappe-stelle-select" class="full-input" style="font-size:12.5px;flex:1;">
-            <option value="">Stelle auswählen (optional)...</option>
-          </select>
-          <button class="btn-primary small" onclick="analyseMappe()">
-            <span id="mappe-btn-text">Mappe analysieren</span>
-          </button>
-        </div>
-      </div>
-
-      <div id="mappe-results" class="js-hidden">
-        <div class="card">
-          <div class="card-title" style="margin-bottom:14px;">KI-Analyse Ergebnisse</div>
-          <div id="analyse-ergebnis"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="analyse-right">
-      <div class="card">
         <div class="card-title" style="margin-bottom:12px;">Statistiken</div>
         <div id="analyse-stats"></div>
       </div>
+    </div>
+    <div class="analyse-right">
       <div class="card">
         <div class="card-title" style="margin-bottom:12px;">Zeitleiste</div>
         <div id="analyse-timeline"></div>
@@ -275,7 +244,7 @@
         <div id="modal-dropzone" class="dropzone"
              ondragover="dzOver(event,'modal-dropzone')"
              ondragleave="dzLeave(event,'modal-dropzone')"
-             ondrop="dzDrop(event,'modal-dropzone',false)">
+             ondrop="dzDrop(event,'modal-dropzone')">
           <div class="dz-body">
             <div class="dz-icon">📎</div>
             <div class="dz-text">PDF hierher ziehen oder <span class="dz-link" onclick="document.getElementById('modal-file').click()">auswählen</span></div>
@@ -286,13 +255,6 @@
         <div id="modal-attachment-list" class="attachment-list"></div>
       </div>
 
-      <!-- KI-LEISTE -->
-      <div id="modal-ai-bar" class="ai-bar hidden">
-        <span class="ai-bar-label">KI kann Felder automatisch ausfüllen</span>
-        <button class="btn-primary small" onclick="analyseModalFile()">
-          <span id="ai-btn-text">Analysieren</span>
-        </button>
-      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
@@ -343,29 +305,6 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════
-     MODAL: EINSTELLUNGEN
-═══════════════════════════════════════════════ -->
-<div id="settings-overlay" class="modal-overlay hidden" onclick="closeSettings()">
-  <div class="modal" style="max-width:420px;" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <h2>Einstellungen</h2>
-      <button class="modal-close" onclick="closeSettings()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="field-group">
-        <label class="field-label">Anthropic API-Key</label>
-        <input type="password" id="settings-apikey" placeholder="sk-ant-..." class="full-input">
-        <p style="font-size:11.5px;color:var(--hint);margin-top:5px;">Wird nur im Browser (localStorage) gespeichert. Wird für die KI-Analyse benötigt.</p>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" onclick="closeSettings()">Abbrechen</button>
-      <button class="btn-primary" onclick="saveSettings()">Speichern</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════
      MODAL: DUPLIKAT-WARNUNG
 ═══════════════════════════════════════════════ -->
 <div id="duplicate-overlay" class="modal-overlay hidden">
@@ -388,12 +327,6 @@
 
 <div class="toast hidden" id="toast"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-  if (typeof pdfjsLib !== 'undefined') {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
-</script>
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>

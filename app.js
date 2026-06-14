@@ -10,8 +10,7 @@ const STATE = {
   editId: null,
   formelEditId: null,
   pendingAttachments: [],
-  pendingDuplicate: null,
-  mappeFiles: []
+  pendingDuplicate: null
 };
 
 // ═══════════════════════════════════════════════
@@ -185,7 +184,6 @@ function openModal(mode, id) {
   STATE.pendingAttachments = [];
 
   document.getElementById('modal-title').textContent = mode === 'add' ? 'Bewerbung hinzufügen' : 'Bewerbung bearbeiten';
-  document.getElementById('modal-ai-bar').classList.add('hidden');
 
   if (mode === 'edit' && id) {
     const b = STATE.bewerbungen.find(x => x.id === id);
@@ -201,7 +199,6 @@ function openModal(mode, id) {
 
       if (b.attachments && b.attachments.length > 0) {
         STATE.pendingAttachments = b.attachments.map(a => ({ ...a }));
-        document.getElementById('modal-ai-bar').classList.remove('hidden');
       }
     }
   } else {
@@ -228,9 +225,19 @@ function closeModal() {
 }
 
 function saveBewerbung() {
-  const firma = document.getElementById('m-firma').value.trim();
-  const stelle = document.getElementById('m-stelle').value.trim();
-  if (!firma || !stelle) { showToast('Firma und Stelle sind Pflichtfelder.'); return; }
+  let firma = document.getElementById('m-firma').value.trim();
+  let stelle = document.getElementById('m-stelle').value.trim();
+
+  // Allow saving with just a PDF — use filename as Firma fallback
+  if (!firma) {
+    if (STATE.pendingAttachments.length > 0) {
+      firma = STATE.pendingAttachments[0].name.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
+    } else {
+      showToast('Bitte mindestens einen Firmennamen oder eine PDF-Datei hinzufügen.');
+      return;
+    }
+  }
+  if (!stelle) stelle = '–';
 
   const data = {
     firma,
@@ -291,14 +298,14 @@ function dzLeave(e, id) {
   document.getElementById(id).classList.remove('active');
 }
 
-async function dzDrop(e, id, forMappe) {
+async function dzDrop(e, id) {
   e.preventDefault();
   document.getElementById(id).classList.remove('active');
   const files = [...e.dataTransfer.files].filter(f =>
     f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
   );
   if (files.length === 0) { showToast('Nur PDF-Dateien werden unterstützt.'); return; }
-  if (forMappe) { await addMappeFiles(files); } else { await addModalFiles(files); }
+  await addModalFiles(files);
 }
 
 async function modalFilesSelected(event) {
@@ -308,6 +315,7 @@ async function modalFilesSelected(event) {
 }
 
 async function addModalFiles(files) {
+  const isFirst = STATE.pendingAttachments.length === 0;
   for (const file of files) {
     if (file.size > 5 * 1024 * 1024) { showToast(file.name + ' ist zu groß (max 5 MB).'); continue; }
     try {
@@ -315,10 +323,15 @@ async function addModalFiles(files) {
       STATE.pendingAttachments.push({ name: file.name, size: file.size, base64 });
     } catch (e) { showToast('Fehler beim Lesen: ' + file.name); }
   }
-  renderModalAttachments();
-  if (STATE.pendingAttachments.length > 0) {
-    document.getElementById('modal-ai-bar').classList.remove('hidden');
+  // Auto-fill Firma from first PDF filename if the field is still empty
+  if (isFirst && STATE.pendingAttachments.length > 0) {
+    const firmaField = document.getElementById('m-firma');
+    if (firmaField && !firmaField.value.trim()) {
+      const name = STATE.pendingAttachments[0].name;
+      firmaField.value = name.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
+    }
   }
+  renderModalAttachments();
 }
 
 function renderModalAttachments() {
@@ -341,9 +354,6 @@ function renderModalAttachments() {
 function removeModalAttachment(idx) {
   STATE.pendingAttachments.splice(idx, 1);
   renderModalAttachments();
-  if (STATE.pendingAttachments.length === 0) {
-    document.getElementById('modal-ai-bar').classList.add('hidden');
-  }
 }
 
 function openAttachment(idx) {
@@ -358,240 +368,54 @@ function openAttachment(idx) {
 }
 
 // ═══════════════════════════════════════════════
-// AI – MODAL FILE ANALYSIS (auto-fill fields)
+// BULK PDF IMPORT
 // ═══════════════════════════════════════════════
 
-async function analyseModalFile() {
-  if (STATE.pendingAttachments.length === 0) return;
-  const btn = document.getElementById('ai-btn-text');
-  btn.textContent = 'Analysiere…';
-
-  try {
-    const file = STATE.pendingAttachments[0];
-    const text = await extractPDFText(file.base64);
-
-    const prompt = `Du analysierst ein Bewerbungsdokument oder eine Stellenanzeige auf Deutsch.
-
-Extrahiere aus dem Text:
-1. Firmenname
-2. Stellenbezeichnung
-3. Ansprechpartner (falls vorhanden, sonst leer lassen)
-4. Bewerbungsplattform (z.B. LinkedIn, Indeed, Direktbewerbung – falls erkennbar, sonst leer)
-
-Antworte NUR mit diesem JSON, ohne Erklärung:
-{"firma":"...","stelle":"...","kontakt":"...","plattform":"..."}
-
-Text:
-${text}`;
-
-    const result = await callAnthropicAPI(prompt);
-    if (!result) { btn.textContent = 'Analysieren'; return; }
-
-    try {
-      const m = result.match(/\{[\s\S]*?\}/);
-      if (!m) throw new Error('kein JSON');
-      const json = JSON.parse(m[0]);
-      if (json.firma)     document.getElementById('m-firma').value     = json.firma;
-      if (json.stelle)    document.getElementById('m-stelle').value    = json.stelle;
-      if (json.kontakt)   document.getElementById('m-kontakt').value   = json.kontakt;
-      if (json.plattform) document.getElementById('m-plattform').value = json.plattform;
-      showToast('Felder wurden automatisch ausgefüllt!');
-    } catch (e) {
-      showToast('Konnte Antwort nicht verarbeiten. Erneut versuchen.');
-    }
-  } finally {
-    btn.textContent = 'Analysieren';
-  }
-}
-
-// ═══════════════════════════════════════════════
-// AI – BEWERBUNGSMAPPE ANALYSE
-// ═══════════════════════════════════════════════
-
-async function mappeFilesSelected(event) {
-  const files = [...event.target.files];
-  await addMappeFiles(files);
+async function bulkPDFSelected(event) {
+  const files = [...event.target.files].filter(f =>
+    f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+  );
   event.target.value = '';
-}
+  if (files.length === 0) return;
 
-async function addMappeFiles(files) {
+  const today = new Date().toISOString().split('T')[0];
+  let added = 0;
+
   for (const file of files) {
-    if (file.size > 10 * 1024 * 1024) { showToast(file.name + ' ist zu groß (max 10 MB).'); continue; }
-    try {
-      const base64 = await fileToBase64(file);
-      STATE.mappeFiles.push({ name: file.name, size: file.size, base64 });
-    } catch (e) { showToast('Fehler: ' + file.name); }
-  }
-  renderMappeFilelist();
-
-  const sel = document.getElementById('mappe-stelle-select');
-  sel.innerHTML = '<option value="">Stelle auswählen (optional)...</option>' +
-    STATE.bewerbungen.map(b => `<option value="${b.id}">${escHtml(b.firma)} – ${escHtml(b.stelle)}</option>`).join('');
-
-  if (STATE.mappeFiles.length > 0) {
-    const bar = document.getElementById('mappe-ai-bar');
-    bar.classList.remove('js-hidden');
-    bar.style.display = 'flex';
-  }
-}
-
-function renderMappeFilelist() {
-  const el = document.getElementById('mappe-filelist');
-  el.innerHTML = STATE.mappeFiles.map((f, i) => `
-    <div class="att-item">
-      <span class="att-icon">📄</span>
-      <div class="att-info">
-        <div class="att-name">${escHtml(f.name)}</div>
-        <div class="att-size">${formatFileSize(f.size)}</div>
-      </div>
-      <div class="att-actions">
-        <button class="att-del" onclick="removeMappeFile(${i})">✕</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function removeMappeFile(idx) {
-  STATE.mappeFiles.splice(idx, 1);
-  renderMappeFilelist();
-  if (STATE.mappeFiles.length === 0) {
-    document.getElementById('mappe-ai-bar').style.display = 'none';
-  }
-}
-
-async function analyseMappe() {
-  if (STATE.mappeFiles.length === 0) return;
-  const btn = document.getElementById('mappe-btn-text');
-  btn.textContent = 'Analysiere…';
-
-  try {
-    const textParts = [];
-    for (const file of STATE.mappeFiles) {
-      const text = await extractPDFText(file.base64);
-      textParts.push(`=== ${file.name} ===\n${text}`);
+    const firma = file.name.replace(/\.pdf$/i, '').replace(/[_\-]+/g, ' ').trim();
+    let attachments = [];
+    if (file.size <= 5 * 1024 * 1024) {
+      try {
+        const base64 = await fileToBase64(file);
+        attachments = [{ name: file.name, size: file.size, base64 }];
+      } catch (e) {}
+    } else {
+      showToast(file.name + ' ist zu groß (max 5 MB) – ohne Anhang gespeichert.');
     }
-    const combined = textParts.join('\n\n').slice(0, 12000);
 
-    const stelleId = document.getElementById('mappe-stelle-select').value;
-    const stelle = stelleId ? STATE.bewerbungen.find(b => b.id === stelleId) : null;
-    const stelleCtx = stelle
-      ? `\nDie Unterlagen gehören zur Bewerbung für: "${stelle.stelle}" bei "${stelle.firma}".`
-      : '';
+    const dup = STATE.bewerbungen.find(b =>
+      b.firma.toLowerCase() === firma.toLowerCase() && b.attachments && b.attachments.some(a => a.name === file.name)
+    );
+    if (dup) continue;
 
-    const prompt = `Du analysierst eine Bewerbungsmappe auf Deutsch.${stelleCtx}
-
-Analysiere die folgenden Dokumente und erstelle:
-1. ERFAHRUNG: Strukturierte Übersicht der Berufserfahrung und Qualifikationen (Stationen, Zeiträume, Kernkompetenzen)
-2. SCORE: ${stelle ? `Matching-Score 1-10 wie gut die Unterlagen zur Stelle passen, mit kurzer Begründung` : `Gesamtstärke-Bewertung 1-10 mit kurzer Begründung`}
-3. LUECKEN: Fehlende Informationen oder konkretes Verbesserungspotential
-
-Antworte NUR mit diesem JSON (keine Erklärung außerhalb):
-{"erfahrung":"...","score":8,"score_begruendung":"...","luecken":"..."}
-
-Dokumente:
-${combined}`;
-
-    const result = await callAnthropicAPI(prompt);
-    if (!result) { btn.textContent = 'Mappe analysieren'; return; }
-
-    try {
-      const m = result.match(/\{[\s\S]*\}/);
-      if (!m) throw new Error();
-      renderMappeResults(JSON.parse(m[0]));
-    } catch (e) {
-      document.getElementById('analyse-ergebnis').innerHTML = `<div class="analyse-text">${escHtml(result)}</div>`;
-      document.getElementById('mappe-results').style.display = 'block';
-    }
-  } finally {
-    btn.textContent = 'Mappe analysieren';
-  }
-}
-
-function renderMappeResults(data) {
-  const score = Number(data.score) || 0;
-  const cls = score >= 7 ? 'high' : score >= 5 ? 'mid' : 'low';
-
-  document.getElementById('analyse-ergebnis').innerHTML = `
-    <div class="analyse-section">
-      <div class="analyse-section-title">Matching-Score</div>
-      <div class="score-ring">
-        <div class="score-num ${cls}">${score}<span class="score-denom">/10</span></div>
-        <div class="score-desc">${escHtml(data.score_begruendung || '')}</div>
-      </div>
-    </div>
-    <div class="analyse-section">
-      <div class="analyse-section-title">Berufserfahrung & Qualifikationen</div>
-      <div class="analyse-text">${escHtml(data.erfahrung || '')}</div>
-    </div>
-    <div class="analyse-section">
-      <div class="analyse-section-title">Lücken & Verbesserungspotential</div>
-      <div class="analyse-text">${escHtml(data.luecken || '')}</div>
-    </div>
-  `;
-  document.getElementById('mappe-results').style.display = 'block';
-}
-
-// ═══════════════════════════════════════════════
-// ANTHROPIC API
-// ═══════════════════════════════════════════════
-
-async function callAnthropicAPI(userPrompt) {
-  const apiKey = localStorage.getItem('mz-api-key');
-  if (!apiKey) {
-    openSettings();
-    showToast('Bitte zuerst den API-Key in den Einstellungen eingeben.');
-    return null;
-  }
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
-        messages: [{ role: 'user', content: userPrompt }]
-      })
+    STATE.bewerbungen.unshift({
+      id: 'b-' + Date.now() + '-' + added,
+      firma,
+      stelle: '–',
+      datum: today,
+      status: 'offen',
+      plattform: '',
+      kontakt: '',
+      link: '',
+      notizen: '',
+      attachments
     });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      showToast('API-Fehler: ' + (err.error?.message || resp.status));
-      return null;
-    }
-    const data = await resp.json();
-    return data.content[0]?.text || null;
-  } catch (e) {
-    showToast('Netzwerkfehler: ' + e.message);
-    return null;
+    added++;
   }
-}
 
-// ═══════════════════════════════════════════════
-// PDF TEXT EXTRACTION (PDF.js)
-// ═══════════════════════════════════════════════
-
-async function extractPDFText(base64) {
-  if (typeof pdfjsLib === 'undefined') return '[PDF.js nicht geladen]';
-  try {
-    const raw = base64.includes(',') ? base64.split(',')[1] : base64;
-    const binStr = atob(raw);
-    const bytes = new Uint8Array(binStr.length);
-    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-    const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
-    let text = '';
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const page = await pdf.getPage(p);
-      const content = await page.getTextContent();
-      text += content.items.map(it => it.str).join(' ') + '\n';
-    }
-    return text.trim().slice(0, 9000);
-  } catch (e) {
-    return '[Fehler beim Lesen der PDF: ' + e.message + ']';
-  }
+  saveBewerbungenStorage();
+  renderTracker();
+  showToast(added + ' Bewerbung' + (added === 1 ? '' : 'en') + ' aus PDF importiert.');
 }
 
 // ═══════════════════════════════════════════════
@@ -607,7 +431,7 @@ function checkDuplicate(firma, stelle) {
     const bfLow = b.firma.toLowerCase().trim();
     const firmaMatch = bfLow.includes(fLow) || fLow.includes(bfLow);
     if (!firmaMatch) return false;
-    if (!sLow || !b.stelle) return true;
+    if (!sLow || sLow === '–' || !b.stelle || b.stelle === '–') return true;
     const bsLow = b.stelle.toLowerCase().trim();
     return bsLow.includes(sLow) || sLow.includes(bsLow) || strSimilarity(bsLow, sLow) > 0.6;
   }) || null;
@@ -677,27 +501,6 @@ function duplicateUpdate() {
   closeDuplicate();
   closeModal();
   renderTracker();
-}
-
-// ═══════════════════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════════════════
-
-function openSettings() {
-  document.getElementById('settings-apikey').value = localStorage.getItem('mz-api-key') || '';
-  document.getElementById('settings-overlay').classList.remove('hidden');
-}
-
-function closeSettings() {
-  document.getElementById('settings-overlay').classList.add('hidden');
-}
-
-function saveSettings() {
-  const key = document.getElementById('settings-apikey').value.trim();
-  if (key) localStorage.setItem('mz-api-key', key);
-  else localStorage.removeItem('mz-api-key');
-  closeSettings();
-  showToast(key ? 'API-Key gespeichert.' : 'API-Key entfernt.');
 }
 
 // ═══════════════════════════════════════════════
@@ -966,7 +769,7 @@ function usePreviewForCheck() {
 function saveToTracker() {
   const firma = STATE.firma || prompt('Für welches Unternehmen ist dieses Anschreiben?');
   if (!firma) return;
-  const stelle = prompt('Welche Stelle?') || '';
+  const stelle = prompt('Welche Stelle?') || '–';
   const data = {
     id: 'b-' + Date.now(),
     firma, stelle,
@@ -1138,7 +941,6 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeModal();
     closeFormelModal();
-    closeSettings();
     closeDuplicate();
   }
 });
